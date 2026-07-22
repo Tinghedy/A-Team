@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<!-- maximum-scale=1 避免 iOS 聚焦輸入框時整頁被放大 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>搜尋</title>
+<style>
+/* ============================================================
+   設計變數
+   ============================================================ */
+:root{
+  --blue:#1a73e8;
+  --blue-light:#e8f0fe;
+  --text:#202124;
+  --text-sub:#5f6368;
+  --text-hint:#80868b;
+  --border:#dadce0;
+  --bg-grey:#f1f3f4;
+  --radius-lg:18px;
+  --radius-md:14px;
+  --tap:44px;           /* 最小點擊區域 */
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+
+html,body{margin:0;padding:0;}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  font-size:17px;
+  line-height:1.7;
+  color:var(--text);
+  background:#fff;
+  max-width:430px;
+  min-width:320px;
+  margin:0 auto;
+  -webkit-text-size-adjust:100%;   /* 禁止 iOS 自動縮放字級 */
+}
+
+/* 點擊回饋：所有可按元素按下時背景變淺，避免長輩狂點 */
+.tappable{transition:background-color .1s, transform .1s;}
+.tappable:active{background-color:#e8eaed !important; transform:scale(.985);}
+
+button{font-family:inherit;cursor:pointer;border:none;background:none;}
+
+/* ============================================================
+   狀態列（純視覺）
+   ============================================================ */
+.statusbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 22px 4px;
+  font-size:15px;font-weight:600;
+}
+.statusbar .icons{display:flex;gap:5px;align-items:center;}
+
+/* ============================================================
+   頁面切換
+   ============================================================ */
+.view{display:none;}
+.view.active{display:block;}
+
+/* ============================================================
+   頁面 1：搜尋首頁
+   ============================================================ */
+.home-wrap{padding:20px 18px 40px;}
+
+/* 搜尋框：真正的 input，不是裝飾用的 div */
+.searchbox{
+  display:flex;align-items:center;
+  background:var(--bg-grey);
+  border-radius:28px;
+  padding:4px 6px 4px 18px;
+  margin-bottom:26px;
+}
+.searchbox input{
+  flex:1;
+  border:none;background:transparent;outline:none;
+  font-family:inherit;
+  font-size:17px;          /* 必須 >=16px，否則 iOS 會放大整頁 */
+  line-height:1.4;
+  padding:14px 0;
+  color:var(--text);
+  min-width:0;
+}
+.searchbox input::placeholder{color:var(--text-hint);}
+.searchbox input::-webkit-search-cancel-button{display:none;}
+
+.search-submit{
+  width:var(--tap);height:var(--tap);
+  flex:0 0 var(--tap);
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;
+}
+
+/* 「直接問 AI」— 主要按鈕，寬度是其他選項兩倍 */
+.method-grid{
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr;
+  gap:8px;
+  justify-items:center;
+}
+.method-btn{
+  width:100%;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;
+  background:#fff;
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-md);
+  padding:12px; /* symmetric padding to keep icon+label centered */
+  font-size:14px;
+  color:var(--text);
+  min-height:96px;
+}
+.method-btn.primary{
+  background:var(--blue);
+  border-color:var(--blue);
+  border-radius:var(--radius-lg);
+  color:#fff;
+  font-size:16px;
+  font-weight:700;
+  padding:22px 16px 22px 18px;
+  align-items:center;
+}
+.method-btn.primary:active{background:#1557b0 !important;}
+.method-btn.primary span{white-space:nowrap;display:block;width:100%;text-align:center;}
+.method-btn span{white-space:nowrap;display:block;width:100%;text-align:center;}
+
+.method-btn svg{width:28px;height:28px;display:block;margin:0 auto;}
+.method-btn.primary svg{width:30px;height:30px;display:block;margin:0 auto;}
+
+/* 「選擇方式」提示：說明下方是並列選項而非步驟 */
+.method-label{
+  text-align:left;
+  font-size:13px;
+  color:var(--text-hint);
+  margin-bottom:10px;
+}
+
+/* 首頁提示文字（正向指引，不寫「無資料」） */
+.home-hint{
+  margin-top:34px;
+  text-align:center;
+  font-size:15px;
+  color:var(--text-hint);
+  line-height:1.9;
+}
+
+/* ============================================================
+   頁面 2：搜尋結果頁
+   ============================================================ */
+.result-topbar{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px 12px;
+  border-bottom:1px solid #eee;
+  position:sticky;top:0;background:#fff;z-index:10;
+}
+.icon-btn{
+  width:var(--tap);height:var(--tap);
+  flex:0 0 var(--tap);
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;
+}
+.result-query{
+  flex:1;min-width:0;
+  background:var(--bg-grey);
+  border-radius:24px;
+  padding:11px 18px;
+  font-size:17px;
+  color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-align:left;
+}
+
+.result-body{padding:16px 16px 60px;}
+
+/* 步驟卡片：左圖右文 */
+.step-card{
+  display:flex;gap:12px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  padding:12px;
+  margin-bottom:18px;
+}
+.step-thumb{
+  flex:0 0 110px;width:110px;height:110px;
+  border-radius:10px;
+  background:var(--bg-grey);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+.step-thumb img{width:100%;height:100%;object-fit:cover;}
+.step-main{flex:1;min-width:0;}
+
+/* TTS 播放器 */
+.tts{
+  background:var(--blue-light);
+  border-radius:12px;
+  padding:10px 12px;
+  margin-bottom:12px;
+}
+.tts-top{display:flex;align-items:center;gap:10px;}
+.tts-bar{
+  flex:1;height:6px;border-radius:3px;background:#c6d9f7;overflow:hidden;
+}
+.tts-fill{height:100%;width:0%;background:var(--blue);transition:width .25s;}
+.tts-controls{
+  display:flex;gap:6px;margin-top:10px;
+}
+.tts-btn{
+  flex:1;
+  height:var(--tap);
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  background:#fff;border-radius:10px;
+  font-size:14px;color:var(--text);
+  border:1px solid #c6d9f7;
+}
+
+.step-text{font-size:16px;line-height:1.8;color:var(--text);margin:0 0 8px;}
+.step-more{display:none;}
+.step-more.open{display:block;}
+.step-more p{font-size:16px;line-height:1.8;margin:0 0 10px;}
+
+.link-btn{
+  color:var(--blue);
+  font-size:16px;font-weight:600;
+  padding:10px 2px;
+  min-height:var(--tap);
+  display:inline-flex;align-items:center;gap:4px;
+}
+
+/* 影片卡片 */
+.section-title{font-size:18px;font-weight:700;margin:22px 0 10px;}
+.video-card{
+  border:1px solid var(--border);
+  border-radius:var(--radius-md);
+  overflow:hidden;margin-bottom:8px;
+  display:block;width:100%;text-align:left;
+  background:#fff;
+}
+.video-thumb{
+  position:relative;width:100%;aspect-ratio:16/9;background:#3c4043;
+}
+.video-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.video-play{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.video-duration{
+  position:absolute;right:8px;bottom:8px;
+  background:rgba(0,0,0,.82);color:#fff;
+  font-size:13px;padding:2px 7px;border-radius:4px;
+}
+.video-meta{display:flex;gap:10px;padding:12px;}
+.channel-dot{
+  flex:0 0 36px;width:36px;height:36px;border-radius:50%;
+  background:#ea4335;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:17px;
+}
+.video-title{
+  font-size:16px;font-weight:600;line-height:1.5;margin:0 0 4px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.video-sub{font-size:14px;color:var(--text-sub);}
+
+/* 網頁結果卡片 */
+.web-card{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;background:#fff}
+.web-title{font-size:16px;font-weight:700;margin:0 0 6px;color:var(--text);}
+.web-snippet{font-size:15px;color:var(--text-sub);margin:0 0 6px;}
+.web-site{font-size:13px;color:var(--text-hint);}
+
+/* 相關問題手風琴 */
+.qa-item{border-bottom:1px solid #eee;}
+.qa-head{
+  width:100%;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:16px 4px;
+  font-size:17px;text-align:left;color:var(--text);
+  min-height:var(--tap);
+}
+.qa-arrow{flex:0 0 auto;transition:transform .2s;}
+.qa-item.open .qa-arrow{transform:rotate(180deg);}
+.qa-body{display:none;padding:0 4px 16px;font-size:16px;line-height:1.8;color:var(--text-sub);}
+.qa-item.open .qa-body{display:block;}
+
+/* 「其他」自由輸入 */
+.other-box{
+  margin-top:22px;
+  border:1.5px dashed var(--border);
+  border-radius:var(--radius-md);
+  padding:6px 14px;
+  display:flex;align-items:center;gap:10px;
+}
+.other-box label{
+  font-size:15px;color:var(--text-hint);
+  text-decoration:underline;flex:0 0 auto;
+}
+.other-box input{
+  flex:1;border:none;outline:none;background:transparent;
+  font-family:inherit;font-size:16px;padding:12px 0;min-width:0;
+}
+
+/* 資料來源 */
+.sources{margin-top:22px;font-size:13px;color:var(--text-hint);line-height:1.9;}
+.sources a{color:var(--text-sub);}
+
+/* ============================================================
+   載入中 / 錯誤（長輩專用：大字、明確、有出口）
+   ============================================================ */
+.state-screen{
+  display:none;
+  padding:70px 30px;
+  text-align:center;
+}
+.state-screen.active{display:block;}
+.spinner{
+  width:56px;height:56px;margin:0 auto 24px;
+  border:5px solid var(--bg-grey);
+  border-top-color:var(--blue);
+  border-radius:50%;
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.state-text{font-size:20px;color:var(--text);line-height:1.8;}
+.state-sub{font-size:16px;color:var(--text-sub);margin-top:10px;}
+.state-action{
+  display:inline-block;
+  margin-top:30px;
+  background:var(--blue);color:#fff;
+  font-size:19px;font-weight:700;
+  padding:18px 40px;border-radius:var(--radius-lg);
+}
+
+/* 搜尋中時按鈕禁用，避免重複送出 */
+.is-loading{opacity:.5;pointer-events:none;}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     狀態列（兩頁共用）
+     ============================================================ -->
+<div class="statusbar">
+  <div id="clock">9:41</div>
+  <div class="icons">
+    <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+    <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 11.5 5.6 8.4a4.2 4.2 0 0 1 5.8 0zM2.8 5.6a8.2 8.2 0 0 1 11.4 0l1.4-1.5a10.2 10.2 0 0 0-14.2 0z"/></svg>
+    <svg width="26" height="13" viewBox="0 0 26 13" fill="none"><rect x=".5" y=".5" width="22" height="12" rx="3.5" stroke="currentColor"/><rect x="2" y="2" width="19" height="9" rx="2" fill="currentColor"/><path d="M24 4.5v4a2.5 2.5 0 0 0 0-4z" fill="currentColor"/></svg>
+  </div>
+</div>
+
+<!-- ============================================================
+     頁面 1：搜尋首頁
+     ============================================================ -->
+<div id="view-home" class="view active">
+  <div class="home-wrap">
+
+    <!-- 搜尋框：真的 input，Enter 或右側按鈕都能送出 -->
+    <form class="searchbox" id="search-form" onsubmit="return false;">
+      <input
+        id="search-input"
+        type="search"
+        inputmode="search"
+        enterkeyhint="search"
+        placeholder="搜尋"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        aria-label="輸入你想問的問題">
+      <button type="submit" class="search-submit tappable" id="btn-submit" aria-label="開始搜尋">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5f6368" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+    </form>
+
+    <!-- 說明下方按鈕是並列選項，不是操作順序 -->
+    <div class="method-label">選擇方式</div>
+
+    <div class="method-grid">
+      <!-- 直接問 AI：寬度為其他選項兩倍 -->
+      <button class="method-btn primary tappable" id="btn-ai">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.5l1.9 5.1 5.1 1.9-5.1 1.9L12 16.5l-1.9-5.1L5 9.5l5.1-1.9z"/><path d="M18.5 15l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z"/></svg>
+        <span>直接問 AI</span>
+      </button>
+
+      <button class="method-btn tappable" data-method="用說的問">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="1.9" stroke-linecap="round"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+        <span>用說的問</span>
+      </button>
+
+      <button class="method-btn tappable" data-method="拍照詢問">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="1.9"><path d="M3 8.5h3l1.5-2.5h9L18 8.5h3v11H3z" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.4"/></svg>
+        <span>拍照詢問</span>
+      </button>
+
+      <button class="method-btn tappable" data-method="相片參考">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="1.9"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17l5-5 4.5 4.5 3-2.5 4.5 4" stroke-linejoin="round"/></svg>
+        <span>相片參考</span>
+      </button>
+    </div>
+
+    <div class="home-hint">打字問問題<br>或選一種方式開始</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     載入中
+     ============================================================ -->
+<div id="view-loading" class="view">
+  <div class="state-screen active">
+    <div class="spinner"></div>
+    <div class="state-text">正在幫你找答案…</div>
+    <div class="state-sub">請稍等一下下</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     錯誤 / 沒找到
+     ============================================================ -->
+<div id="view-error" class="view">
+  <div class="state-screen active">
+    <div style="font-size:56px;margin-bottom:16px;">🔍</div>
+    <div class="state-text" id="error-text">找不到相關的資料</div>
+    <div class="state-sub" id="error-sub">換個說法再試一次看看</div>
+    <button class="state-action tappable" onclick="goHome()">回到首頁</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     頁面 2：搜尋結果頁
+     ============================================================ -->
+<div id="view-result" class="view">
+
+  <div class="result-topbar">
+    <button class="icon-btn tappable" onclick="goHome()" aria-label="返回">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg>
+    </button>
+    <button class="result-query tappable" id="result-query" onclick="goHome()">載具是什麼</button>
+    <button class="icon-btn tappable" id="btn-share" aria-label="分享">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/><path d="M8.4 10.7l7.2-3.9M8.4 13.3l7.2 3.9"/></svg>
+    </button>
+  </div>
+
+  <div class="result-body">
+
+    <!-- 步驟卡片：左圖右文 -->
+    <div class="step-card">
+      <div class="step-thumb" id="step-thumb">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="1.6"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17l5-5 4.5 4.5 3-2.5 4.5 4"/></svg>
+      </div>
+
+      <div class="step-main">
+        <!-- TTS 播放器：Web Speech API 真的會念 -->
+        <div class="tts">
+          <div class="tts-top">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#1a73e8"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6" stroke="#1a73e8" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="tts-bar"><div class="tts-fill" id="tts-fill"></div></div>
+          </div>
+          <div class="tts-controls">
+            <button class="tts-btn tappable" id="tts-back">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#202124"><path d="M11 12l8-6v12zM3 12l8-6v12z"/></svg>倒帶
+            </button>
+            <button class="tts-btn tappable" id="tts-play">
+              <svg id="tts-icon" width="18" height="18" viewBox="0 0 24 24" fill="#202124"><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>
+              <span id="tts-label">暫停</span>
+            </button>
+            <button class="tts-btn tappable" id="tts-fwd">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#202124"><path d="M13 12L5 6v12zM21 12l-8-6v12z"/></svg>快轉
+            </button>
+            <button class="icon-btn tappable" id="btn-sources" title="顯示來源">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+            </button>
+            <button class="icon-btn tappable" id="btn-sample" title="載具範例" aria-label="載具範例">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <p class="step-text" id="summary-text">載具是儲存電子發票的工具⋯⋯</p>
+
+        <div class="step-more" id="more-text"></div>
+
+        <button class="link-btn tappable" id="btn-more">
+          <span id="more-label">顯示更多</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 影片卡片 -->
+    <div id="video-section">
+      <div class="section-title">影片（橫式）</div>
+      <a class="video-card tappable" id="video-card" target="_blank" rel="noopener">
+        <div class="video-thumb">
+          <img id="video-img" alt="">
+          <div class="video-play">
+            <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" fill="rgba(0,0,0,.55)"/><path d="M24 19l19 11-19 11z" fill="#fff"/></svg>
+          </div>
+          <div class="video-duration" id="video-duration">2:53</div>
+        </div>
+        <div class="video-meta">
+          <div class="channel-dot" id="video-initial">M</div>
+          <div style="min-width:0">
+            <p class="video-title" id="video-title"></p>
+            <div class="video-sub" id="video-sub"></div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- 網頁搜尋結果 -->
+    <div id="web-results-section">
+      <div class="section-title">網頁搜尋結果</div>
+      <div id="web-results"></div>
+    </div>
+
+    <!-- 相關問題手風琴 -->
+    <div class="section-title">相關問題</div>
+    <div id="qa-list"></div>
+
+    <!-- 「其他」自由輸入 -->
+    <form class="other-box" id="other-form" onsubmit="return false;">
+      <label for="other-input">其他</label>
+      <input id="other-input" type="search" enterkeyhint="search"
+             placeholder="打字問別的問題" autocomplete="off" autocorrect="off">
+    </form>
+
+    <!-- 資料來源 -->
+    <div class="sources" id="sources"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   狀態
+   ============================================================ */
+let currentData = null;
+const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
+
+/* 現場網路掛掉時的 fallback 假資料（?demo=1） */
+const DEMO_DATA = {
+  ok:true,
+  query:'載具是什麼',
+  summary:'載具是儲存電子發票的工具，當你消費時，不需要印紙本發票，發票會直接存到載具裡。常見的載具有手機條碼、悠遊卡、信用卡。',
+  more:[
+    '手機條碼是最多人用的。到財政部的網站申請一次，就會拿到一組條碼，存在手機裡，結帳時給店員掃就好。',
+    '用載具的好處是不用收一堆紙本發票，也不會弄丟。中獎的話，獎金會自動匯到你指定的帳戶。'
+  ],
+  questions:[
+    {q:'為什麼叫載具？',a:'「載」是裝載，「具」是工具，合起來就是「裝東西的工具」。它裝的是你的電子發票。'},
+    {q:'怎麼申請載具？',a:'最簡單的是手機條碼。到財政部電子發票整合服務平台，用手機號碼和電子信箱註冊，馬上就有了，不用付錢。'},
+    {q:'一個人可以有幾個載具？',a:'可以有很多個，手機條碼、悠遊卡、信用卡都可以當載具。不過建議都歸戶到同一組手機條碼，對獎比較方便。'},
+    {q:'大家都用什麼載具？',a:'最多人用手機條碼，因為不用帶卡片，手機拿出來給店員掃就好。'}
+  ],
+  video:{
+    title:'電子發票!? 發票載具？帶你三分鐘搞懂！懶人包（上）-申請教學',
+    channel:'Money錢',
+    thumbnail:'',
+    publishedAt:'7年前',
+    duration:'2:53',
+    views:'82萬次觀看',
+    url:'https://www.youtube.com/results?search_query=載具是什麼'
+  },
+  sources:[]
+};
+
+/* ============================================================
+   頁面切換
+   ============================================================ */
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function goHome(){
+  stopSpeech();
+  showView('view-home');
+  document.getElementById('search-input').value='';
+}
+
+/* ============================================================
+   搜尋
+   ============================================================ */
+async function doSearch(query){
+  const q = (query||'').trim();
+  if(!q){
+    // 空字串就把游標放回輸入框，不跳警告
+    document.getElementById('search-input').focus();
+    return;
+  }
+
+  stopSpeech();
+  showView('view-loading');
+
+  // demo 模式：不打 API，直接用假資料
+  if(DEMO_MODE){
+    setTimeout(()=>{ currentData={...DEMO_DATA,query:q}; renderResult(currentData); },600);
+    return;
+  }
+
+  // 8 秒逾時：長輩不會等超過 10 秒
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 8000);
+
+  try{
+    const res = await fetch('/api/search?q='+encodeURIComponent(q), {signal:controller.signal});
+    clearTimeout(timer);
+    const data = await res.json();
+
+    if(!data.ok){
+      if(data.reason==='NO_RESULT'){
+        showError('找不到相關的資料','換個說法再試一次看看');
+      }else{
+        showError('現在連不上網路','請稍等一下再試一次');
+      }
+      return;
+    }
+
+    currentData = data;
+    renderResult(data);
+
+  }catch(err){
+    clearTimeout(timer);
+    if(err.name==='AbortError'){
+      showError('等太久了','網路好像有點慢，請再試一次');
+    }else{
+      showError('現在連不上網路','請稍等一下再試一次');
+    }
+  }
+}
+
+function showError(title, sub){
+  document.getElementById('error-text').textContent = title;
+  document.getElementById('error-sub').textContent = sub;
+  showView('view-error');
+}
+
+/* ============================================================
+   結果渲染
+   ============================================================ */
+function renderResult(d){
+  // 頂部查詢字
+  document.getElementById('result-query').textContent = d.query;
+
+  // 摘要
+  document.getElementById('summary-text').textContent = d.summary || '';
+
+  // 「顯示更多」的內容
+  const moreEl = document.getElementById('more-text');
+  moreEl.innerHTML='';
+  (d.more||[]).forEach(p=>{
+    const el=document.createElement('p');
+    el.textContent=p;
+    moreEl.appendChild(el);
+  });
+  moreEl.classList.remove('open');
+  document.getElementById('more-label').textContent='顯示更多';
+  document.getElementById('btn-more').style.display = (d.more&&d.more.length)?'inline-flex':'none';
+
+  // 影片
+  const vSec = document.getElementById('video-section');
+  if(d.video){
+    vSec.style.display='block';
+    document.getElementById('video-card').href = d.video.url;
+    const img=document.getElementById('video-img');
+    if(d.video.thumbnail){ img.src=d.video.thumbnail; img.style.display='block'; }
+    else { img.style.display='none'; }
+    document.getElementById('video-title').textContent = d.video.title;
+    document.getElementById('video-duration').textContent = d.video.duration || '';
+    document.getElementById('video-initial').textContent = (d.video.channel||'?').charAt(0);
+    document.getElementById('video-sub').textContent =
+      [d.video.channel, d.video.views, d.video.publishedAt].filter(Boolean).join('・');
+    // 影片縮圖也用來當步驟卡片的示意圖
+    const thumb=document.getElementById('step-thumb');
+    if(d.video.thumbnail){
+      thumb.innerHTML='<img src="'+d.video.thumbnail+'" alt="">';
+    }
+  }else{
+    vSec.style.display='none';
+  }
+
+  // 網頁搜尋結果
+  const webSec = document.getElementById('web-results-section');
+  const webEl = document.getElementById('web-results');
+  webEl.innerHTML = '';
+  if(d.web && d.web.length){
+    webSec.style.display = 'block';
+    d.web.forEach(w=>{
+      const card = document.createElement('div');
+      card.className = 'web-card';
+      card.innerHTML = '<a class="web-title" href="'+w.link+'" target="_blank" rel="noopener">'+escapeHtml(w.title||w.link)+'</a>'+
+                       '<p class="web-snippet">'+escapeHtml(w.snippet||'')+'</p>'+
+                       '<div class="web-site">'+escapeHtml(w.site||'')+'</div>';
+      webEl.appendChild(card);
+    });
+  } else {
+    webSec.style.display = 'none';
+  }
+
+  // 相關問題手風琴
+  const list=document.getElementById('qa-list');
+  list.innerHTML='';
+  (d.questions||[]).forEach((item,i)=>{
+    const wrap=document.createElement('div');
+    wrap.className='qa-item';
+    wrap.innerHTML =
+      '<button class="qa-head tappable">'+
+        '<span>'+escapeHtml(item.q)+'</span>'+
+        '<svg class="qa-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5f6368" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>'+
+      '</button>'+
+      '<div class="qa-body">'+escapeHtml(item.a||'')+'</div>';
+    wrap.querySelector('.qa-head').addEventListener('click',()=>wrap.classList.toggle('open'));
+    list.appendChild(wrap);
+  });
+
+  // 資料來源
+  const src=document.getElementById('sources');
+  if(d.sources&&d.sources.length){
+    src.innerHTML='資料來源：'+d.sources.map(s=>{
+      const label = s.site || s.title || s.link;
+      return '<a href="'+s.link+'" target="_blank" rel="noopener">'+escapeHtml(label)+'</a>';
+    }).join('、');
+  }else{ src.innerHTML=''; }
+
+  document.getElementById('other-input').value='';
+  showView('view-result');
+
+  // 進頁面自動念出摘要（長輩對「用聽的」需求高）
+  setTimeout(()=>speak(buildSpeechText(d)), 400);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================================================
+   TTS：Web Speech API
+   ============================================================ */
+let utterance=null;
+let speechText='';
+let speechOffset=0;   // 從第幾個字開始念（倒帶/快轉用）
+let isPlaying=false;
+
+function buildSpeechText(d){
+  return [d.summary, ...(d.more||[])].filter(Boolean).join('。');
+}
+
+function speak(text, fromChar){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+
+  speechText = text || speechText;
+  speechOffset = fromChar || 0;
+  const toRead = speechText.slice(speechOffset);
+  if(!toRead) { resetTTS(); return; }
+
+  utterance = new SpeechSynthesisUtterance(toRead);
+  utterance.lang='zh-TW';
+  utterance.rate=0.85;   // 比預設慢，長輩較好跟上
+  utterance.pitch=1;
+
+  // 進度條跟著念到哪裡走
+  utterance.onboundary = (e)=>{
+    const pos = speechOffset + (e.charIndex||0);
+    setProgress(pos/speechText.length);
+  };
+  utterance.onend = ()=>{ setProgress(1); setPlayIcon(false); isPlaying=false; };
+
+  speechSynthesis.speak(utterance);
+  isPlaying=true;
+  setPlayIcon(true);
+}
+
+function stopSpeech(){
+  if('speechSynthesis' in window) speechSynthesis.cancel();
+  isPlaying=false;
+  resetTTS();
+}
+
+function resetTTS(){ setProgress(0); setPlayIcon(false); }
+function setProgress(r){ document.getElementById('tts-fill').style.width=Math.min(100,r*100)+'%'; }
+
+function setPlayIcon(playing){
+  const icon=document.getElementById('tts-icon');
+  const label=document.getElementById('tts-label');
+  if(playing){
+    icon.innerHTML='<path d="M8 5h3v14H8zM13 5h3v14h-3z"/>';   // 暫停符號
+    label.textContent='暫停';
+  }else{
+    icon.innerHTML='<path d="M7 5l12 7-12 7z"/>';               // 播放符號
+    label.textContent='播放';
+  }
+}
+
+/* ============================================================
+   事件綁定
+   ============================================================ */
+
+// 搜尋送出（Enter 與放大鏡按鈕都算）
+document.getElementById('search-form').addEventListener('submit',()=>{
+  doSearch(document.getElementById('search-input').value);
+});
+document.getElementById('search-input').addEventListener('keydown',(e)=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    e.target.blur();   // 收鍵盤
+    doSearch(e.target.value);
+  }
+});
+document.getElementById('btn-submit').addEventListener('click',()=>{
+  doSearch(document.getElementById('search-input').value);
+});
+
+// 直接問 AI：有打字就搜那個，沒打字就聚焦輸入框
+document.getElementById('btn-ai').addEventListener('click',()=>{
+  const v=document.getElementById('search-input').value.trim();
+  if(v) doSearch(v);
+  else document.getElementById('search-input').focus();
+});
+
+// 三個並列選項（還沒接真功能，先確認有點到）
+document.querySelectorAll('[data-method]').forEach(btn=>{
+  btn.addEventListener('click',()=>alert('你點了：'+btn.dataset.method));
+});
+
+// 顯示更多
+document.getElementById('btn-more').addEventListener('click',()=>{
+  const el=document.getElementById('more-text');
+  const open=el.classList.toggle('open');
+  document.getElementById('more-label').textContent = open?'收起來':'顯示更多';
+});
+
+// 分享
+document.getElementById('btn-share').addEventListener('click',async()=>{
+  const url=location.origin+'/?q='+encodeURIComponent(currentData?.query||'');
+  try{ await navigator.clipboard.writeText(url); }catch(e){}
+  alert('已複製整頁連結');
+});
+
+// 顯示 / 隱藏 來源按鈕
+document.getElementById('btn-sources').addEventListener('click',()=>{
+  const srcEl = document.getElementById('sources');
+  if(srcEl.style.display==='block'){
+    srcEl.style.display='';
+  }else{
+    srcEl.style.display='block';
+    // 如果已經有 currentData，確保來源已渲染；否則用 demo 或空列表
+    if(!currentData) renderResult(DEMO_MODE?DEMO_DATA:{ok:true,query:'',summary:'',more:[],questions:[],video:null,sources:[]});
+  }
+});
+
+// 載具範例按鈕：快速顯示「載具」搜尋結果
+document.getElementById('btn-sample').addEventListener('click',()=>{
+  doSearch('載具');
+});
+
+// TTS 播放 / 暫停
+document.getElementById('tts-play').addEventListener('click',()=>{
+  if(!('speechSynthesis' in window)){ alert('這台裝置沒辦法唸出來'); return; }
+  if(isPlaying){
+    speechSynthesis.pause(); isPlaying=false; setPlayIcon(false);
+  }else if(speechSynthesis.paused){
+    speechSynthesis.resume(); isPlaying=true; setPlayIcon(true);
+  }else{
+    speak(speechText||buildSpeechText(currentData||{}), speechOffset);
+  }
+});
+
+// 倒帶：往回 15% 重念
+document.getElementById('tts-back').addEventListener('click',()=>{
+  const back=Math.max(0, speechOffset - Math.floor(speechText.length*0.15));
+  speak(speechText, back);
+});
+
+// 快轉：往前 15%
+document.getElementById('tts-fwd').addEventListener('click',()=>{
+  const fwd=Math.min(speechText.length-1, speechOffset + Math.floor(speechText.length*0.15));
+  speak(speechText, fwd);
+});
+
+// 「其他」自由輸入：Enter 直接搜新問題
+document.getElementById('other-form').addEventListener('submit',()=>{
+  const v=document.getElementById('other-input').value;
+  if(v.trim()) doSearch(v);
+});
+document.getElementById('other-input').addEventListener('keydown',(e)=>{
+  if(e.key==='Enter'){
+    e.preventDefault(); e.target.blur();
+    if(e.target.value.trim()) doSearch(e.target.value);
+  }
+});
+
+// 離開頁面停止朗讀
+window.addEventListener('pagehide', stopSpeech);
+
+// 網址帶 ?q= 直接搜（分享連結用）
+const initQ = new URLSearchParams(location.search).get('q');
+if(initQ) doSearch(initQ);
+
+// 狀態列時鐘走真的時間（工作坊時比較不突兀）
+function tick(){
+  const d=new Date();
+  document.getElementById('clock').textContent =
+    d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+}
+tick(); setInterval(tick,30000);
+</script>
+</body>
+</html>
