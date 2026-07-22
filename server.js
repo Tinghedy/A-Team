@@ -61,15 +61,21 @@ function setCache(key, data) {
 }
 
 // ---- 查詢紀錄：這是你的研究原始資料 ----
-const LOG_PATH = path.join(__dirname, 'queries.log');
+// Vercel 的專案目錄是唯讀，只有 /tmp 可寫（且每個 instance 各自獨立、會被回收）。
+const ON_VERCEL = !!process.env.VERCEL;
+const LOG_PATH = ON_VERCEL
+  ? path.join('/tmp', 'queries.log')
+  : path.join(__dirname, 'queries.log');
 function logQuery(q, meta = {}) {
   const line = JSON.stringify({
     time: new Date().toISOString(),
     query: q,
     ...meta,
   }) + '\n';
+  // 在 Vercel 上檔案不會持久保存，改用 console 讓查詢字進入後台 Logs（可事後匯出）
+  if (ON_VERCEL) console.log('[query]', line.trim());
   fs.appendFile(LOG_PATH, line, (err) => {
-    if (err) console.error('log 寫入失敗', err);
+    if (err) console.error('log 寫入失敗', err.message);
   });
 }
 
@@ -273,8 +279,43 @@ ${snippets.slice(0, 4).map((s, i) => `${i + 1}. ${s}`).join('\n')}
   }
 }
 
+// ---- 防濫用關卡 1：只接受從「自己這個網站」發出的請求 ----
+// 正常使用者用瀏覽器開頁面 → fetch 會帶 Referer/Origin，主機名跟本站一致才放行。
+// 這能擋掉別的網站盜連、以及沒帶來源的裸 curl；但擋不了刻意偽造 Referer 的攻擊者
+// （那種只能靠下面的 Google 額度上限來保底）。
+function sameOriginOnly(req) {
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  const src = req.headers.origin || req.headers.referer || '';
+  if (!host) return true;                       // 極少數拿不到 host 的情況，不誤殺
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(src)) return true; // 本機開發
+  try { return new URL(src).host.toLowerCase() === host; } catch (e) { return false; }
+}
+
+// ---- 防濫用關卡 2：同一 IP 的速率限制（每分鐘上限）----
+// 注意：Vercel serverless 每個 instance 各有自己的記憶體，這個限制是「盡力而為」，
+// 不是全域精準的。要全域精準需接 Vercel KV / Upstash（可再加）。
+const RL_MAX = 30;                 // 每分鐘每 IP 最多 30 次
+const RL_WINDOW = 60 * 1000;
+const rlHits = new Map();
+function rateLimited(req) {
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+    || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const rec = rlHits.get(ip);
+  if (!rec || now > rec.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + RL_WINDOW }); return false; }
+  rec.count += 1;
+  return rec.count > RL_MAX;
+}
+
 // ---- 主要搜尋端點 ----
 app.get('/api/search', async (req, res) => {
+  if (!sameOriginOnly(req)) {
+    return res.status(403).json({ ok: false, reason: 'FORBIDDEN' });
+  }
+  if (rateLimited(req)) {
+    return res.status(429).json({ ok: false, reason: 'RATE_LIMIT' });
+  }
+
   const q = (req.query.q || '').trim();
 
   if (!q) {
@@ -395,13 +436,20 @@ app.get('/admin/queries', (req, res) => {
   res.type('text/plain').send(fs.readFileSync(LOG_PATH, 'utf8'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n  高齡者搜尋介面已啟動`);
-  console.log(`  本機： http://localhost:${PORT}`);
-  console.log(`  手機： http://<你的內網IP>:${PORT}   （用 ipconfig getifaddr en0 查）`);
-  console.log(`  健康檢查： http://localhost:${PORT}/health`);
-  console.log(`  查詢紀錄： http://localhost:${PORT}/admin/queries\n`);
-  if (!GOOGLE_API_KEY || !SEARCH_ENGINE_ID) {
-    console.warn('  ⚠ 尚未設定 GOOGLE_API_KEY / SEARCH_ENGINE_ID，請先填 .env\n');
-  }
-});
+// 只有「直接用 node server.js 啟動」時才開長駐伺服器（本機開發用）。
+// 在 Vercel 上這個檔案是被當成 serverless function 匯入的，不能 listen。
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n  高齡者搜尋介面已啟動`);
+    console.log(`  本機： http://localhost:${PORT}`);
+    console.log(`  手機： http://<你的內網IP>:${PORT}   （用 ipconfig getifaddr en0 查）`);
+    console.log(`  健康檢查： http://localhost:${PORT}/health`);
+    console.log(`  查詢紀錄： http://localhost:${PORT}/admin/queries\n`);
+    if (!GOOGLE_API_KEY || !SEARCH_ENGINE_ID) {
+      console.warn('  ⚠ 尚未設定 GOOGLE_API_KEY / SEARCH_ENGINE_ID，請先填 .env\n');
+    }
+  });
+}
+
+// Vercel 的 @vercel/node 會把這個匯出的 Express app 當成請求處理器
+module.exports = app;

@@ -266,10 +266,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .video-sub{font-size:14px;color:var(--text-sub);}
 
 /* 網頁結果卡片 */
-.web-card{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;background:#fff}
-.web-title{font-size:16px;font-weight:700;margin:0 0 6px;color:var(--text);}
-.web-snippet{font-size:15px;color:var(--text-sub);margin:0 0 6px;}
-.web-site{font-size:13px;color:var(--text-hint);}
+.web-card{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;background:#fff;overflow:hidden}
+.web-title{font-size:16px;font-weight:700;margin:0 0 6px;color:var(--text);overflow-wrap:anywhere;}
+.web-snippet{font-size:15px;color:var(--text-sub);margin:0 0 6px;overflow-wrap:anywhere;}
+.web-site{font-size:13px;color:var(--text-hint);overflow-wrap:anywhere;}
 
 /* 相關問題手風琴 */
 .qa-item{border-bottom:1px solid #eee;}
@@ -303,8 +303,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 }
 
 /* 資料來源 */
-.sources{margin-top:22px;font-size:13px;color:var(--text-hint);line-height:1.9;}
-.sources a{color:var(--text-sub);}
+.sources{margin-top:22px;font-size:13px;color:var(--text-hint);line-height:1.9;overflow-wrap:anywhere;}
+.sources a{color:var(--text-sub);overflow-wrap:anywhere;}
 
 /* ============================================================
    載入中 / 錯誤（長輩專用：大字、明確、有出口）
@@ -835,9 +835,17 @@ document.getElementById('btn-more').addEventListener('click',()=>{
 
 // 分享
 document.getElementById('btn-share').addEventListener('click',async()=>{
-  const url=location.origin+'/?q='+encodeURIComponent(currentData?.query||'');
-  try{ await navigator.clipboard.writeText(url); }catch(e){}
-  alert('已複製整頁連結');
+  const q=currentData?.query||'';
+  const url=location.origin+'/?q='+encodeURIComponent(q);
+  const shareData={ title:'高齡者搜尋', text:q?('我查到「'+q+'」的說明'):'分享這個查詢結果', url };
+  // iPhone Safari / Android Chrome 支援 Web Share API → 叫出系統原生分享面板
+  if(navigator.share){
+    try{ await navigator.share(shareData); return; }
+    catch(e){ if(e&&e.name==='AbortError') return; } // 使用者自己取消分享，不再往下複製或跳提示
+  }
+  // 不支援（多半是桌機瀏覽器）→ 退回複製連結
+  try{ await navigator.clipboard.writeText(url); alert('已複製整頁連結'); }
+  catch(e){ alert('連結：'+url); }
 });
 
 // 顯示 / 隱藏 來源按鈕
