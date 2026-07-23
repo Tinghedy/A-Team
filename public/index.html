@@ -437,7 +437,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
     <button class="icon-btn tappable" onclick="goHome()" aria-label="返回">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg>
     </button>
-    <button class="result-query tappable" id="result-query" onclick="goHome()">載具是什麼</button>
+    <button class="result-query tappable" id="result-query" onclick="goHome()">膽固醇</button>
     <button class="icon-btn tappable" id="btn-share" aria-label="分享">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><circle cx="18" cy="5.5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="18.5" r="2.6"/><path d="M8.4 10.7l7.2-3.9M8.4 13.3l7.2 3.9"/></svg>
     </button>
@@ -472,13 +472,13 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
             <button class="icon-btn tappable" id="btn-sources" title="顯示來源">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
             </button>
-            <button class="icon-btn tappable" id="btn-sample" title="載具範例" aria-label="載具範例">
+            <button class="icon-btn tappable" id="btn-sample" title="膽固醇範例" aria-label="膽固醇範例">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
             </button>
           </div>
         </div>
 
-        <p class="step-text" id="summary-text">載具是儲存電子發票的工具⋯⋯</p>
+        <p class="step-text" id="summary-text">膽固醇是血液裡的一種油脂。其中「壞膽固醇」如果太高，會慢慢塞住血管，容易引起心臟病或中風。一般人的壞膽固醇最好控制在 100 以下。</p>
 
         <div class="step-more" id="more-text"></div>
 
@@ -498,7 +498,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
           <div class="video-play">
             <svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" fill="rgba(0,0,0,.55)"/><path d="M24 19l19 11-19 11z" fill="#fff"/></svg>
           </div>
-          <div class="video-duration" id="video-duration">2:53</div>
+          <div class="video-duration" id="video-duration">8:42</div>
         </div>
         <div class="video-meta">
           <div class="channel-dot" id="video-initial">M</div>
@@ -539,30 +539,54 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 let currentData = null;
 const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
 
+function isCholesterolQuery(q){
+  return String(q || '').includes('膽固醇');
+}
+
 /* 現場網路掛掉時的 fallback 假資料（?demo=1） */
 const DEMO_DATA = {
   ok:true,
-  query:'載具是什麼',
-  summary:'載具是儲存電子發票的工具，當你消費時，不需要印紙本發票，發票會直接存到載具裡。常見的載具有手機條碼、悠遊卡、信用卡。',
+  query:'膽固醇',
+  summary:'膽固醇是血液裡的一種油脂。其中「壞膽固醇」如果太高，會慢慢塞住血管，容易引起心臟病或中風。一般人的壞膽固醇最好控制在 100 以下。',
   more:[
-    '手機條碼是最多人用的。到財政部的網站申請一次，就會拿到一組條碼，存在手機裡，結帳時給店員掃就好。',
-    '用載具的好處是不用收一堆紙本發票，也不會弄丟。中獎的話，獎金會自動匯到你指定的帳戶。'
+    '想降低膽固醇，可以少吃油炸食物和肥肉，多吃豆腐、魚、燕麥和黑木耳。健康的人每天吃一顆蛋不會讓膽固醇變高，不用擔心。',
+    '如果數值一直降不下來，建議找醫生討論是否需要吃藥。'
   ],
   questions:[
-    {q:'為什麼叫載具？',a:'「載」是裝載，「具」是工具，合起來就是「裝東西的工具」。它裝的是你的電子發票。'},
-    {q:'怎麼申請載具？',a:'最簡單的是手機條碼。到財政部電子發票整合服務平台，用手機號碼和電子信箱註冊，馬上就有了，不用付錢。'},
-    {q:'一個人可以有幾個載具？',a:'可以有很多個，手機條碼、悠遊卡、信用卡都可以當載具。不過建議都歸戶到同一組手機條碼，對獎比較方便。'},
-    {q:'大家都用什麼載具？',a:'最多人用手機條碼，因為不用帶卡片，手機拿出來給店員掃就好。'}
+    {q:'膽固醇過高要吃什麼改善？',a:'少吃油炸和肥肉，多吃豆腐、魚、燕麥、黑木耳，用橄欖油或苦茶油炒菜。'},
+    {q:'膽固醇的正常值是多少？',a:'總膽固醇最好在 200 以下，壞膽固醇最好在 130 以下。抽血報告上會寫。'},
+    {q:'每天吃一顆蛋膽固醇會高嗎？',a:'健康的人每天吃一顆蛋不會讓膽固醇明顯升高，可以放心吃。'},
+    {q:'膽固醇高需要吃藥嗎？',a:'如果飲食控制三到六個月還是降不下來，建議找醫生討論是否需要用藥。'}
   ],
   video:{
-    title:'電子發票!? 發票載具？帶你三分鐘搞懂！懶人包（上）-申請教學',
-    channel:'Money錢',
-    thumbnail:'',
-    publishedAt:'7年前',
-    duration:'2:53',
-    views:'82萬次觀看',
-    url:'https://www.youtube.com/results?search_query=載具是什麼'
+    title:'壞膽固醇如何控制在標準值？這樣做避免高血脂',
+    channel:'ME美醫誌',
+    thumbnail:'https://i.ytimg.com/vi/42Wm4dwW_78/hqdefault.jpg',
+    publishedAt:'',
+    duration:'8:42',
+    views:'12萬次觀看',
+    url:'https://www.youtube.com/watch?v=42Wm4dwW_78'
   },
+  web:[
+    {
+      title:'維基百科：膽固醇',
+      snippet:'膽固醇的基本介紹，包含好膽固醇與壞膽固醇的差異、正常數值範圍與飲食建議。',
+      link:'https://zh.wikipedia.org/wiki/%E8%86%BD%E5%9B%BA%E9%86%87',
+      site:'zh.wikipedia.org'
+    },
+    {
+      title:'膽固醇過高怎麼辦？14種食物有效降低',
+      snippet:'介紹燕麥、堅果、深海魚等食物如何幫助降低壞膽固醇，附飲食建議。',
+      link:'https://blog.worldgymtaiwan.com',
+      site:'blog.worldgymtaiwan.com'
+    },
+    {
+      title:'高血壓與高膽固醇的健康管理',
+      snippet:'台灣營養學會整理的健康管理共識，包含飲食原則與生活習慣建議。',
+      link:'https://nutrition.org.tw',
+      site:'nutrition.org.tw'
+    }
+  ],
   sources:[]
 };
 
@@ -595,8 +619,8 @@ async function doSearch(query){
   stopSpeech();
   showView('view-loading');
 
-  // demo 模式：不打 API，直接用假資料
-  if(DEMO_MODE){
+  // demo 模式只針對膽固醇，其他查詢都走正常 API
+  if(DEMO_MODE && isCholesterolQuery(q)){
     setTimeout(()=>{ currentData={...DEMO_DATA,query:q}; renderResult(currentData); },600);
     return;
   }
@@ -860,9 +884,9 @@ document.getElementById('btn-sources').addEventListener('click',()=>{
   }
 });
 
-// 載具範例按鈕：快速顯示「載具」搜尋結果
+// 膽固醇範例按鈕：快速顯示「膽固醇」搜尋結果
 document.getElementById('btn-sample').addEventListener('click',()=>{
-  doSearch('載具');
+  doSearch('膽固醇');
 });
 
 // TTS 播放 / 暫停

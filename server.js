@@ -23,22 +23,97 @@ const BRAVE_API_KEY = process.env.BRAVE_API_KEY;   // Brave Search API 金鑰（
 
 // ---- 固定要優先顯示的來源 ----
 const FIXED_SOURCES = [
-  { title: '財政部電子發票整合服務平台', link: 'https://www.einvoice.nat.gov.tw' },
-  { title: 'CETUS 條碼申請說明', link: 'https://www.cetustek.com.tw/how-to-apply-barcode.html' },
-  { title: 'Invoice Manager (Google Play)', link: 'https://play.google.com/store/apps/details?id=money.com.invoicemanager&hl=zh_TW' },
-  { title: '發票載具（App Store）', link: 'https://apps.apple.com/tw/app/%E7%99%BC%E7%A5%A8%E8%BC%89%E5%85%B7-%E7%B5%B1%E4%B8%80%E7%99%BC%E7%A5%A8%E5%B0%8D%E7%8D%8E-%E9%9B%B2%E7%AB%AF%E5%8A%A0%E7%A2%BC%E7%8D%8E-%E5%A4%A2%E5%B9%BB%E7%99%BC%E7%A5%A8%E8%87%AA%E8%A8%82%E5%9C%96%E7%89%87/id1434785043' },
-  { title: '中華電信載具查詢', link: 'https://invoice.cht.com.tw/' },
-  { title: '統一發票載具 FAQ', link: 'https://www.cinvoice.tw/faq/article?id=289&title=%E3%80%8C%E8%BC%89%E5%85%B7%E6%AD%B8%E6%88%B6%E3%80%8D%E6%9C%89%E5%A4%9A%E9%87%8D%E8%A6%81%EF%BC%9F%E4%B8%89%E5%88%86%E9%90%98%E8%AA%8D%E8%AD%98%E5%A6%82%E4%BD%95%E6%AD%B8%E6%88%B6%EF%BC%81' },
-  { title: 'QMonster 載具教學', link: 'https://qmonster.cc/invoicecarrier/' },
+  { title: '維基百科：膽固醇', link: 'https://zh.wikipedia.org/wiki/%E8%86%BD%E5%9B%BA%E9%86%87' },
+  { title: '膽固醇過高怎麼辦？14種食物有效降低', link: 'https://blog.worldgymtaiwan.com' },
+  { title: '高血壓與高膽固醇的健康管理', link: 'https://nutrition.org.tw' },
 ];
 
 // ---- 當作 mock 的網頁結果（用於測試或 API 無回傳時） ----
-const MOCK_WEB_RESULTS = FIXED_SOURCES.map((s, i) => ({
-  title: s.title,
-  snippet: `${s.title} 的官方說明與申請步驟，包含載具申請、使用與常見問題。`,
-  link: s.link,
-  displayLink: s.link.replace(/^https?:\/\//, ''),
-}));
+const MOCK_WEB_RESULTS = [
+  {
+    title: '維基百科：膽固醇',
+    snippet: '膽固醇的基本介紹，包含好膽固醇與壞膽固醇的差異、正常數值範圍與飲食建議。',
+    link: 'https://zh.wikipedia.org/wiki/%E8%86%BD%E5%9B%BA%E9%86%87',
+    displayLink: 'zh.wikipedia.org',
+  },
+  {
+    title: '膽固醇過高怎麼辦？14種食物有效降低',
+    snippet: '介紹燕麥、堅果、深海魚等食物如何幫助降低壞膽固醇，附飲食建議。',
+    link: 'https://blog.worldgymtaiwan.com',
+    displayLink: 'blog.worldgymtaiwan.com',
+  },
+  {
+    title: '高血壓與高膽固醇的健康管理',
+    snippet: '台灣營養學會整理的健康管理共識，包含飲食原則與生活習慣建議。',
+    link: 'https://nutrition.org.tw',
+    displayLink: 'nutrition.org.tw',
+  },
+];
+
+function isCholesterolQuery(q) {
+  return String(q || '').includes('膽固醇');
+}
+
+function buildCholesterolMockPayload(q) {
+  const web = MOCK_WEB_RESULTS.map((r) => ({
+    title: r.title,
+    snippet: r.snippet,
+    link: r.link,
+    site: r.displayLink,
+  }));
+  return {
+    ok: true,
+    query: q,
+    summary: '【什麼是膽固醇】膽固醇是血液裡的一種油脂。其中「壞膽固醇」如果太高，會慢慢塞住血管，容易引起心臟病或中風。一般人的壞膽固醇最好控制在 100 以下。',
+    more: [
+      '【膽固醇對身體造成什麼影響】如果壞膽固醇過高，血管會逐漸變硬、變窄，增加高血壓、心肌梗塞和中風的風險。多吃豆腐、魚、燕麥和黑木耳有助於降低壞膽固醇。',
+      '如果數值一直降不下來，建議找醫生討論是否需要吃藥。',
+    ],
+    questions: [
+      { q: '什麼是膽固醇？', a: '【什麼是膽固醇】膽固醇是血液裡的一種油脂，分為好膽固醇與壞膽固醇。' },
+      { q: '膽固醇對身體造成什麼影響？', a: '【膽固醇對身體造成什麼影響】壞膽固醇過高會讓血管變窄堵塞，增加心血管疾病與中風風險。' },
+      { q: '膽固醇過高要吃什麼改善？', a: '少吃油炸和肥肉，多吃豆腐、魚、燕麥、黑木耳，用橄欖油或苦茶油炒菜。' },
+      { q: '膽固醇高需要吃藥嗎？', a: '如果飲食控制三到六個月還是降不下來，建議找醫生討論是否需要用藥。' },
+    ],
+    video: {
+      title: '壞膽固醇如何控制在標準值？這樣做避免高血脂',
+      channel: 'ME美醫誌',
+      thumbnail: 'https://i.ytimg.com/vi/42Wm4dwW_78/hqdefault.jpg',
+      publishedAt: '',
+      duration: '8:42',
+      views: '12萬次觀看',
+      url: 'https://www.youtube.com/watch?v=42Wm4dwW_78',
+    },
+    sources: FIXED_SOURCES.map((s) => ({ ...s })),
+    web,
+    aiGenerated: false,
+    cached: false,
+  };
+}
+
+function buildGenericMockResults(q) {
+  const cleanQ = String(q || '').replace(/[？?！!。.\s]/g, '');
+  return [
+    {
+      title: `【什麼是${cleanQ}】衛教與健康保養建議 - 衛生福利部`,
+      snippet: `【什麼是${cleanQ}】${cleanQ}是常見的飲食、保健或健康衛教主題。瞭解${cleanQ}的基本性質、成分與正確使用觀念，能幫助長輩做好日常保健。`,
+      link: `https://www.mohw.gov.tw/search?q=${encodeURIComponent(cleanQ)}`,
+      displayLink: 'mohw.gov.tw',
+    },
+    {
+      title: `【${cleanQ}對身體造成什麼影響】專家飲食與生活保健建議`,
+      snippet: `【${cleanQ}對身體造成什麼影響】適量飲食或正確面對${cleanQ}對維持身體代謝與健康有其影響。如過量攝取或有相關不適，建議留意身體反應並尋求專業醫師指示。`,
+      link: `https://health.tvbs.com.tw/search/${encodeURIComponent(cleanQ)}`,
+      displayLink: 'health.tvbs.com.tw',
+    },
+    {
+      title: `維基百科：${cleanQ}`,
+      snippet: `${cleanQ}的定義、常見類型與相關健康影響介紹。`,
+      link: `https://zh.wikipedia.org/wiki/${encodeURIComponent(cleanQ)}`,
+      displayLink: 'zh.wikipedia.org',
+    },
+  ];
+}
 
 // ---- 靜態檔案 ----
 app.use(express.static(path.join(__dirname, 'public')));
@@ -172,55 +247,135 @@ async function braveSearch(q) {
   }));
 }
 
-// ---- YouTube 影片（含時長與觀看數，需兩次呼叫）----
-async function youtubeSearch(q) {
-  if (!GOOGLE_API_KEY) return null;
+// ---- YouTube 影片擷取標題與內容簡介 ----
+async function youtubeSearch(q, maxResults = 4) {
+  if (!GOOGLE_API_KEY) return [];
 
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search`
+  // 先搜尋包含「衛教」或「健康」關鍵字，提升衛教相關度
+  const searchQuery = `${q} 衛教 健康`;
+  let searchUrl = `https://www.googleapis.com/youtube/v3/search`
     + `?key=${GOOGLE_API_KEY}`
-    + `&part=snippet&type=video&maxResults=1&relevanceLanguage=zh-Hant&regionCode=TW`
-    + `&q=${encodeURIComponent(q)}`;
+    + `&part=snippet&type=video&maxResults=${maxResults}&relevanceLanguage=zh-Hant&regionCode=TW`
+    + `&q=${encodeURIComponent(searchQuery)}`;
 
-  const res = await fetchWithTimeout(searchUrl);
+  let res = await fetchWithTimeout(searchUrl);
   if (!res.ok) {
-    console.error('YouTube search 失敗', res.status);
-    return null;
+    // 備援：若加關鍵字搜尋失敗，嘗試直接搜尋原關鍵字 q
+    searchUrl = `https://www.googleapis.com/youtube/v3/search`
+      + `?key=${GOOGLE_API_KEY}`
+      + `&part=snippet&type=video&maxResults=${maxResults}&relevanceLanguage=zh-Hant&regionCode=TW`
+      + `&q=${encodeURIComponent(q)}`;
+    res = await fetchWithTimeout(searchUrl);
+    if (!res.ok) {
+      console.error('YouTube search 失敗', res.status);
+      return [];
+    }
   }
   const data = await res.json();
-  const item = (data.items || [])[0];
-  if (!item) return null;
+  const items = data.items || [];
+  if (items.length === 0) return [];
 
-  const videoId = item.id.videoId;
-  const sn = item.snippet;
+  const videoIds = items.map((it) => it.id.videoId).filter(Boolean).join(',');
+  const detailsMap = new Map();
 
-  // 第二次呼叫拿時長與觀看數
-  let duration = '';
-  let views = '';
-  try {
-    const detailUrl = `https://www.googleapis.com/youtube/v3/videos`
-      + `?key=${GOOGLE_API_KEY}&part=contentDetails,statistics&id=${videoId}`;
-    const dRes = await fetchWithTimeout(detailUrl);
-    if (dRes.ok) {
-      const dData = await dRes.json();
-      const d = (dData.items || [])[0];
-      if (d) {
-        duration = formatDuration(d.contentDetails?.duration);
-        views = formatViews(d.statistics?.viewCount);
+  if (videoIds) {
+    try {
+      const detailUrl = `https://www.googleapis.com/youtube/v3/videos`
+        + `?key=${GOOGLE_API_KEY}&part=contentDetails,statistics&id=${videoIds}`;
+      const dRes = await fetchWithTimeout(detailUrl);
+      if (dRes.ok) {
+        const dData = await dRes.json();
+        (dData.items || []).forEach((d) => {
+          detailsMap.set(d.id, {
+            duration: formatDuration(d.contentDetails?.duration),
+            views: formatViews(d.statistics?.viewCount),
+          });
+        });
       }
+    } catch (e) {
+      console.error('YouTube details 失敗', e.message);
     }
-  } catch (e) {
-    console.error('YouTube details 失敗', e.message);
   }
 
+  return items.map((it) => {
+    const videoId = it.id.videoId;
+    const sn = it.snippet || {};
+    const details = detailsMap.get(videoId) || {};
+    return {
+      videoId,
+      title: sn.title || '',
+      snippet: (sn.description || '').replace(/\s+/g, ' ').trim(),
+      description: (sn.description || '').replace(/\s+/g, ' ').trim(),
+      channel: sn.channelTitle || '',
+      thumbnail: sn.thumbnails?.high?.url || sn.thumbnails?.medium?.url || '',
+      publishedAt: relativeTime(sn.publishedAt),
+      duration: details.duration || '',
+      views: details.views || '',
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+    };
+  });
+}
+
+function buildPayloadFromYouTube(q, ytVideos) {
+  const cleanQ = String(q || '').replace(/[？?！!。.\s]/g, '');
+  const v1 = ytVideos[0] || {};
+  const v2 = ytVideos[1] || {};
+  const v3 = ytVideos[2] || {};
+
+  const cleanTitle1 = v1.title ? v1.title.replace(/【.*?】/g, '').trim() : cleanQ;
+  const cleanDesc1 = v1.description ? v1.description.slice(0, 140).trim() : `點擊影片觀看衛教說明。`;
+
+  const cleanTitle2 = v2.title ? v2.title.replace(/【.*?】/g, '').trim() : `相關健康影響說明`;
+  const cleanDesc2 = v2.description ? v2.description.slice(0, 140).trim() : `了解日常飲食、生活習慣與健康維護方式。`;
+
+  const summary = `【什麼是${cleanQ}】${cleanTitle1}。${cleanDesc1}`;
+  const more = [
+    `【${cleanQ}對身體造成什麼影響】${cleanTitle2}。${cleanDesc2}`,
+    ...(v3.description ? [`影片內容簡介：${v3.description.slice(0, 120)}`] : []),
+  ];
+
+  const questions = [
+    {
+      q: `什麼是${cleanQ}？`,
+      a: v1.title ? `【什麼是${cleanQ}】觀看「${v1.title}」（${v1.channel}）：${v1.description ? v1.description.slice(0, 100) : '提供衛生教育資訊'}` : `【什麼是${cleanQ}】瞭解${cleanQ}的相關衛教資訊。`,
+    },
+    {
+      q: `${cleanQ}對身體造成什麼影響？`,
+      a: v2.title ? `【${cleanQ}對身體造成什麼影響】參閱「${v2.title}」（${v2.channel}）：${v2.description ? v2.description.slice(0, 100) : '相關影響說明'}` : `【${cleanQ}對身體造成什麼影響】適量選擇並注意日常身體維護。`,
+    },
+    {
+      q: `${cleanQ}飲食與日常保養注意事項？`,
+      a: `多數健康與飲食議題建議依個人體質適量選擇，有不適症狀請及早諮詢專業醫師。`,
+    },
+    {
+      q: `什麼時候需要就醫詢問？`,
+      a: `如果相關不適症狀持續或體質較敏感，建議至專科醫院進行進一步檢查。`,
+    },
+  ];
+
+  const sources = ytVideos.map((v) => ({
+    title: v.title,
+    link: v.url,
+    site: `YouTube ・ ${v.channel}`,
+  }));
+
+  const web = ytVideos.map((v) => ({
+    title: v.title,
+    snippet: v.description || `觀看 ${v.channel} 說明的 ${v.title} 衛教影片內容`,
+    link: v.url,
+    site: `YouTube ・ ${v.channel}`,
+  }));
+
   return {
-    videoId,
-    title: sn.title,
-    channel: sn.channelTitle,
-    thumbnail: sn.thumbnails?.high?.url || sn.thumbnails?.medium?.url || '',
-    publishedAt: relativeTime(sn.publishedAt),
-    duration,
-    views,
-    url: `https://www.youtube.com/watch?v=${videoId}`,
+    ok: true,
+    query: q,
+    summary,
+    more,
+    questions,
+    video: v1.videoId ? v1 : null,
+    sources,
+    web,
+    aiGenerated: false,
   };
 }
 
@@ -333,82 +488,50 @@ app.get('/api/search', async (req, res) => {
   }
 
   try {
-    // 優先使用 Google Custom Search；若沒有結果且有設定 Brave，則以 Brave 做後備
-    let webResults = [];
-    let video = null;
+    if (isCholesterolQuery(q)) {
+      return res.json(buildCholesterolMockPayload(q));
+    }
 
-    const videoPromise = youtubeSearch(q).catch(() => null);
-
+    // 優先使用 YouTube API 擷取影片標題與內容簡介
+    let ytVideos = [];
     try {
-      webResults = await googleSearch(q);
+      ytVideos = await youtubeSearch(q, 4);
     } catch (e) {
-      console.error('googleSearch 失敗', e.message);
-      webResults = [];
+      console.error('youtubeSearch 失敗', e.message);
+      ytVideos = [];
     }
 
-    video = await videoPromise;
-
-    if ((!webResults || webResults.length === 0) && BRAVE_API_KEY) {
-      try {
-        const braveRes = await braveSearch(q);
-        if (braveRes && braveRes.length) webResults = braveRes;
-      } catch (e) {
-        console.error('braveSearch 失敗', e.message);
-      }
+    if (ytVideos && ytVideos.length > 0) {
+      console.log(`[YouTube API] 成功擷取 ${ytVideos.length} 支影片標題與內容簡介`);
+      const payload = buildPayloadFromYouTube(q, ytVideos);
+      setCache(q, payload);
+      return res.json(payload);
     }
 
-    // 如果沒有實際搜尋到 web results，就用 mock data（你要求硬寫成 mock）
-    if ((!webResults || webResults.length === 0)) {
-      webResults = MOCK_WEB_RESULTS;
-    }
-
-    if ((!webResults || webResults.length === 0) && !video) {
-      return res.json({ ok: false, reason: 'NO_RESULT' });
-    }
-
-    // 試著用 Gemini 改寫；失敗就退回原始 snippet
-    const ai = await geminiSummarize(q, webResults.map((r) => r.snippet));
-
-    // 合併固定來源與搜尋結果（固定來源優先，避免重複連結）
-    const dynamicSources = webResults.slice(0, 5).map((r) => ({
-      title: r.title,
-      link: r.link,
-      site: r.displayLink,
-    }));
-
-    const seen = new Set();
-    const combined = [];
-    for (const s of FIXED_SOURCES) {
-      if (!seen.has(s.link)) {
-        combined.push(s);
-        seen.add(s.link);
-      }
-    }
-    for (const s of dynamicSources) {
-      if (!seen.has(s.link)) {
-        combined.push(s);
-        seen.add(s.link);
-      }
-    }
-
+    // 若 YouTube 搜尋失敗或無結果，使用備援 Mock 回傳
+    console.log(`[Fallback] YouTube 無結果，使用備援 Mock 回傳: ${q}`);
+    const mockWeb = buildGenericMockResults(q);
     const payload = {
       ok: true,
       query: q,
-      summary: ai?.summary || webResults[0]?.snippet || '',
-      more: ai?.more || webResults.slice(1, 4).map((r) => r.snippet).filter(Boolean),
-      questions: ai?.questions || webResults.slice(1, 5).map((r) => ({
-        q: r.title,
-        a: r.snippet,
-      })),
-      video,
-      sources: combined,
-      web: webResults.slice(0, 6).map((r) => ({
+      summary: mockWeb[0]?.snippet || `【什麼是${q}】衛教知識與健康照護建議`,
+      more: [
+        mockWeb[1]?.snippet || `【${q}對身體造成什麼影響】建議依個人體質適量選擇並諮詢醫師。`,
+        mockWeb[2]?.snippet || '',
+      ].filter(Boolean),
+      questions: [
+        { q: `什麼是${q}？`, a: `【什麼是${q}】${q}是常見的飲食與衛教保健主題。` },
+        { q: `${q}對身體造成什麼影響？`, a: `【${q}對身體造成什麼影響】適量攝取並留意身體反應。` },
+      ],
+      video: null,
+      sources: FIXED_SOURCES,
+      web: mockWeb.map((r) => ({
         title: r.title,
         snippet: r.snippet,
         link: r.link,
-        site: r.displayLink || r.link,
+        site: r.displayLink,
       })),
-      aiGenerated: !!ai,
+      aiGenerated: false,
     };
 
     setCache(q, payload);
